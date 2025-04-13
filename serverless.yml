@@ -1,0 +1,70 @@
+org: rjorg
+app: video-encoding-hls
+service: Video-encoding-adaptive-bitrate
+
+provider:
+  httpApi:
+    cors: true
+  name: aws
+  region: ${opt:region, 'ap-south-1'}
+  runtime: nodejs20.x
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:ListBucket
+        - s3:PutObject
+      Resource:
+        - arn:aws:s3:::raw-video-cj/uploads/*
+        - arn:aws:s3:::raw-video-cj  #💡 Add bucket root for listing
+package:
+  excludeDevDependencies: true
+  individually: true
+
+layers:
+  dependencies:
+    compatibleRuntimes:
+      - nodejs20.x
+    name: dependencies
+    path: layers
+
+build:
+  esbuild:
+    # Enable or Disable bundling the function code and dependencies into a single file. (Default: true)
+    # The packages config, this can be set to override the behavior of external
+    # If this is set then all dependencies will be treated as external and not bundled.
+    packages: external
+    external:
+      - aws-sdk
+    exclude:
+      - aws-sdk
+      - zod
+      - uuidv4
+      - uuid
+      - aws-sdk/client-s3
+      - aws-sdk/s3-request-presigner
+
+    buildConcurrency: 3
+    minify: false
+    # Enable or configure sourcemaps, can be set to true or to an object with further configuration.
+    sourcemap:
+      # The sourcemap type to use, options are (inline, linked, or external)
+      type: linked
+      # Whether to set the NODE_OPTIONS on functions to enable sourcemaps on Lambda
+      setNodeOptions: true
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - httpApi:
+          path: /
+          method: get
+
+  video-upload:
+    handler: src/controller/video/upload.handler
+    layers:
+      - !Ref DependenciesLambdaLayer
+    events:
+      - httpApi:
+          path: /video/upload
+          method: post
